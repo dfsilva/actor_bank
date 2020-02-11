@@ -1,6 +1,7 @@
 package br.com.diegosilva.bank.states;
 
 import br.com.diegosilva.bank.CborSerializable;
+import br.com.diegosilva.bank.actors.account.BankAccount;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -8,7 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * The state for the {@link br.com.diegosilva.bank.actors.BankAccount} entity.
+ * The state for the {@link BankAccount} entity.
  */
 
 public final class BankAccountState implements CborSerializable {
@@ -17,6 +18,9 @@ public final class BankAccountState implements CborSerializable {
     private String ownerName;
     private Set<Transaction> transactions = new HashSet<>();
     private BigDecimal ammount = BigDecimal.ZERO;
+
+    public BankAccountState() { ;
+    }
 
     public BankAccountState(String accountNumber, String ownerName) {
         this.accountNumber = accountNumber;
