@@ -52,7 +52,7 @@ public class BankAccountRoutes {
     }
 
 
-    public Route shopping() {
+    public Route bank() {
         return pathPrefix("bank", () ->
                 pathPrefix("account", () ->
                         concat(

@@ -49,7 +49,7 @@ class Guardian {
 //                        tag -> new ShoppingCartEventProcessorStream(system, settings.id, tag));
 //            }
 
-            startHttpServer(new BankAccountRoutes(system).shopping(), httpPort, system);
+            startHttpServer(new BankAccountRoutes(system).bank(), httpPort, system);
             return Behaviors.empty();
         });
     }
