@@ -9,7 +9,7 @@ import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.server.Route;
 import akka.serialization.jackson.JacksonObjectMapperProvider;
 import br.com.diegosilva.bank.actors.account.BankAccount;
-import br.com.diegosilva.bank.states.BankAccountState;
+import br.com.diegosilva.bank.actors.account.BankAccountState;
 import br.com.diegosilva.bank.utils.UUIDGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
