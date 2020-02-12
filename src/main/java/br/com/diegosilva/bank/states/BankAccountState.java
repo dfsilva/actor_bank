@@ -14,18 +14,16 @@ import java.util.Set;
 
 public final class BankAccountState implements CborSerializable {
 
-    private String accountNumber;
-    private String ownerName;
-    private Set<Transaction> transactions = new HashSet<>();
+    private String number;
+    private String name;
+    private String uid;
     private BigDecimal ammount = BigDecimal.ZERO;
+    private Set<Transaction> transactions = new HashSet<>();
+
 
     public BankAccountState() { ;
     }
 
-    public BankAccountState(String accountNumber, String ownerName) {
-        this.accountNumber = accountNumber;
-        this.ownerName = ownerName;
-    }
 
     public static final class Transaction implements CborSerializable {
         public final String tid;
@@ -36,7 +34,12 @@ public final class BankAccountState implements CborSerializable {
         public final String type;
 
 
-        public Transaction(String tid, long timestamp, BigDecimal amount, String from, String to, String type) {
+        public Transaction(String tid,
+                           long timestamp,
+                           BigDecimal amount,
+                           String from,
+                           String to,
+                           String type) {
             this.tid = tid;
             this.timestamp = timestamp;
             this.amount = amount;

@@ -14,111 +14,135 @@ import br.com.diegosilva.bank.states.BankAccountState;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 import java.time.Duration;
+import java.util.Map;
 
 
 public class BankAccount
-  extends EventSourcedBehaviorWithEnforcedReplies<BankAccount.Command, BankAccount.Event, BankAccountState> {
+        extends EventSourcedBehaviorWithEnforcedReplies<BankAccount.Command, BankAccount.Event, BankAccountState> {
 
-  public interface Command extends CborSerializable {
-  }
-
-  public interface Confirmation extends CborSerializable {}
-
-
-  public static class StartAccount implements Command{
-    public final String accountNumber;
-    public final String ownerName;
-    public final BankAccountState.Transaction transaction;
-    public final ActorRef<Confirmation> replyTo;
-
-    @JsonCreator
-    public StartAccount(String accountNumber, String ownerName, BankAccountState.Transaction transaction,
-                        ActorRef<Confirmation> replyTo) {
-      this.accountNumber = accountNumber;
-      this.ownerName = ownerName;
-      this.transaction = transaction;
-      this.replyTo = replyTo;
-
+    public interface Command extends CborSerializable {
     }
-  }
 
-  public static class AddTransaction implements Command {
-    public final String itemId;
-    public final int quantity;
-    public final ActorRef<Confirmation> replyTo;
-
-    @JsonCreator
-    public AddTransaction(String itemId, int quantity, ActorRef<Confirmation> replyTo) {
-      this.itemId = itemId;
-      this.quantity = quantity;
-      this.replyTo = replyTo;
+    public interface Confirmation extends CborSerializable {
     }
-  }
 
-  public static class Checkout implements Command {
-    public final ActorRef<Confirmation> replyTo;
+    public static class Accepted implements Confirmation {
+        public final Map<String, Object> summary;
 
-    @JsonCreator
-    public Checkout(ActorRef<Confirmation> replyTo) {
-      this.replyTo = replyTo;
+        @JsonCreator
+        public Accepted(Map<String, Object> summary) {
+            this.summary = summary;
+        }
     }
-  }
+
+    public static class Rejected implements Confirmation {
+        public final String reason;
+
+        @JsonCreator
+        public Rejected(String reason) {
+            this.reason = reason;
+        }
+    }
 
 
-  public interface Event extends CborSerializable {
-  }
+    public static class CreateAccount implements Command {
+        public final String number;
+        public final String name;
+        public final String uid;
+        public final BankAccountState.Transaction transaction;
+        public final ActorRef<Confirmation> replyTo;
 
-  public static final class ItemAdded implements Event {
-    public final String cartId;
-    public final String itemId;
-    public final int quantity;
+        @JsonCreator
+        public CreateAccount(String number,
+                             String name,
+                             String uid,
+                             BankAccountState.Transaction transaction,
+                             ActorRef<Confirmation> replyTo) {
+            this.number = number;
+            this.name = name;
+            this.uid = uid;
+            this.transaction = transaction;
+            this.replyTo = replyTo;
+        }
+    }
 
-    public ItemAdded(String cartId, String itemId, int quantity) {
-      this.cartId = cartId;
-      this.itemId = itemId;
-      this.quantity = quantity;
+    public static class AddTransaction implements Command {
+        public final String itemId;
+        public final int quantity;
+        public final ActorRef<Confirmation> replyTo;
+
+        @JsonCreator
+        public AddTransaction(String itemId, int quantity, ActorRef<Confirmation> replyTo) {
+            this.itemId = itemId;
+            this.quantity = quantity;
+            this.replyTo = replyTo;
+        }
+    }
+
+    public static class Checkout implements Command {
+        public final ActorRef<Confirmation> replyTo;
+
+        @JsonCreator
+        public Checkout(ActorRef<Confirmation> replyTo) {
+            this.replyTo = replyTo;
+        }
+    }
+
+
+    public interface Event extends CborSerializable {
+    }
+
+    public static final class ItemAdded implements Event {
+        public final String cartId;
+        public final String itemId;
+        public final int quantity;
+
+        public ItemAdded(String cartId, String itemId, int quantity) {
+            this.cartId = cartId;
+            this.itemId = itemId;
+            this.quantity = quantity;
+        }
+
+        @Override
+        public String toString() {
+            return "ItemAdded(" + cartId + "," + itemId + "," + quantity + ")";
+        }
+    }
+
+    public static EntityTypeKey<Command> ENTITY_TYPE_KEY =
+            EntityTypeKey.create(Command.class, "BankAccount");
+
+    public static void init(ActorSystem<?> system) {
+        ClusterSharding.get(system).init(Entity.of(ENTITY_TYPE_KEY, entityContext -> {
+            return BankAccount.create(entityContext.getEntityId());
+        })
+                .withRole("write-model"));
+    }
+
+    public static Behavior<Command> create(String cartId) {
+        return new BankAccount(cartId);
+    }
+
+    private final String accountId;
+
+    private BankAccount(String accountId) {
+        super(PersistenceId.of(ENTITY_TYPE_KEY.name(), accountId),
+                SupervisorStrategy.restartWithBackoff(Duration.ofMillis(200), Duration.ofSeconds(5), 0.1));
+        this.accountId = accountId;
     }
 
     @Override
-    public String toString() {
-      return "ItemAdded(" + cartId + "," + itemId + "," + quantity + ")";
+    public BankAccountState emptyState() {
+        return new BankAccountState();
     }
-  }
 
-  public static EntityTypeKey<Command> ENTITY_TYPE_KEY =
-    EntityTypeKey.create(Command.class, "BankAccount");
+    private final CheckedOutCommandHandlers checkedOutCommandHandlers = new CheckedOutCommandHandlers();
+    private final OpenShoppingCartCommandHandlers openShoppingCartCommandHandlers = new OpenShoppingCartCommandHandlers();
 
-  public static void init(ActorSystem<?> system) {
-    ClusterSharding.get(system).init(Entity.of(ENTITY_TYPE_KEY, entityContext -> {
-        return BankAccount.create(entityContext.getEntityId());
-      })
-      .withRole("write-model"));
-  }
-
-  public static Behavior<Command> create(String cartId) {
-    return new BankAccount(cartId);
-  }
-
-  private final String accountId;
-
-  private BankAccount(String accountId) {
-    super(PersistenceId.of(ENTITY_TYPE_KEY.name(), accountId),
-      SupervisorStrategy.restartWithBackoff(Duration.ofMillis(200), Duration.ofSeconds(5), 0.1));
-    this.accountId = accountId;
-  }
-
-  @Override
-  public BankAccountState emptyState() {
-    return new BankAccountState();
-  }
-
-  private final CheckedOutCommandHandlers checkedOutCommandHandlers = new CheckedOutCommandHandlers();
-  private final OpenShoppingCartCommandHandlers openShoppingCartCommandHandlers = new OpenShoppingCartCommandHandlers();
-
-  @Override
-  public CommandHandlerWithReply<Command, Event, BankAccountState> commandHandler() {
-    CommandHandlerWithReplyBuilder<Command, Event, BankAccountState> b =
-      newCommandHandlerWithReplyBuilder();
+    @Override
+    public CommandHandlerWithReply<Command, Event, BankAccountState> commandHandler() {
+        CommandHandlerWithReplyBuilder<Command, Event, BankAccountState> b =
+                newCommandHandlerWithReplyBuilder();
 
 //    b.forState(state -> !state.isCheckedOut())
 //      .onCommand(AddItem.class, openShoppingCartCommandHandlers::onAddItem)
@@ -135,12 +159,11 @@ public class BankAccount
 //    b.forAnyState()
 //      .onCommand(Get.class, this::onGet);
 
-    return b.build();
-  }
+        return b.build();
+    }
 
 
-
-  private class OpenShoppingCartCommandHandlers {
+    private class OpenShoppingCartCommandHandlers {
 
 //    public ReplyEffect<Event, State> onAddItem(State state, AddItem cmd) {
 //      if (state.hasItem(cmd.itemId)) {
@@ -183,9 +206,9 @@ public class BankAccount
 //          .thenReply(cmd.replyTo, updatedCart -> new Accepted(updatedCart.toSummary()));
 //      }
 //    }
-  }
+    }
 
-  private class CheckedOutCommandHandlers {
+    private class CheckedOutCommandHandlers {
 //    ReplyEffect<Event, State> onAddItem(AddItem cmd) {
 //      return Effect().reply(cmd.replyTo, new Rejected("Can't add an item to an already checked out shopping cart"));
 //    }
@@ -201,17 +224,17 @@ public class BankAccount
 //    ReplyEffect<Event, State> onCheckout(Checkout cmd) {
 //      return Effect().reply(cmd.replyTo, new Rejected("Can't checkout already checked out shopping cart"));
 //    }
-  }
+    }
 
-  @Override
-  public EventHandler<BankAccountState, Event> eventHandler() {
-    return newEventHandlerBuilder().forAnyState()
+    @Override
+    public EventHandler<BankAccountState, Event> eventHandler() {
+        return newEventHandlerBuilder().forAnyState()
 //      .onEvent(ItemAdded.class, (state, event) -> state.updateItem(event.itemId, event.quantity))
 //      .onEvent(ItemRemoved.class, (state, event) -> state.removeItem(event.itemId))
 //      .onEvent(ItemQuantityAdjusted.class, (state, event) -> state.updateItem(event.itemId, event.quantity))
 //      .onEvent(CheckedOut.class, (state, event) -> state.checkout(event.eventTime))
-      .build();
-  }
+                .build();
+    }
 
 //  @Override
 //  public Set<String> tagsFor(Event event) {
@@ -219,9 +242,9 @@ public class BankAccount
 //  }
 
 
-  @Override
-  public RetentionCriteria retentionCriteria() {
-    // enable snapshotting
-    return RetentionCriteria.snapshotEvery(100, 3);
-  }
+    @Override
+    public RetentionCriteria retentionCriteria() {
+        // enable snapshotting
+        return RetentionCriteria.snapshotEvery(100, 3);
+    }
 }
