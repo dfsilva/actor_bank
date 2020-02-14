@@ -10,10 +10,11 @@ import akka.http.javadsl.server.Route;
 import akka.serialization.jackson.JacksonObjectMapperProvider;
 import br.com.diegosilva.bank.actors.account.BankAccount;
 import br.com.diegosilva.bank.actors.account.BankAccountState;
+import br.com.diegosilva.bank.routes.dto.CreateAccount;
+import br.com.diegosilva.bank.routes.dto.MakeTransaction;
 import br.com.diegosilva.bank.utils.UUIDGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Optional;
@@ -24,19 +25,6 @@ import static akka.http.javadsl.server.Directives.*;
 
 public class BankAccountRoutes {
 
-    public static class CreateAccount {
-        public final String uid;
-        public final String name;
-        public final BigDecimal startAmmount;
-
-        public CreateAccount(String uid, String name, BigDecimal startAmmount) {
-            this.uid = uid;
-            this.name = name;
-            this.startAmmount = startAmmount;
-        }
-    }
-
-
     private final ActorSystem<?> system;
     private final ClusterSharding sharding;
     private final Duration timeout;
@@ -46,7 +34,6 @@ public class BankAccountRoutes {
         this.system = system;
         sharding = ClusterSharding.get(system);
         timeout = system.settings().config().getDuration("bank.askTimeout");
-        // Use Jackson ObjectMapper from Akka Jackson serialization
         objectMapper = JacksonObjectMapperProvider.get(Adapter.toClassic(system))
                 .getOrCreate("jackson-json", Optional.empty());
     }
@@ -54,12 +41,22 @@ public class BankAccountRoutes {
 
     public Route bank() {
         return pathPrefix("bank", () ->
-                pathPrefix("account", () ->
-                        concat(
-                                post(() ->
-                                        entity(
-                                                Jackson.unmarshaller(objectMapper, CreateAccount.class),
-                                                data -> onConfirmationReply(createAccount(data))))
+                concat(
+                        pathPrefix("account", () ->
+                                concat(
+                                        post(() ->
+                                                entity(
+                                                        Jackson.unmarshaller(objectMapper, CreateAccount.class),
+                                                        data -> onConfirmationReply(createAccount(data))))
+                                )
+                        ),
+                        pathPrefix("transaction", () ->
+                                concat(
+                                        post(() ->
+                                                entity(
+                                                        Jackson.unmarshaller(objectMapper, MakeTransaction.class),
+                                                        data -> onConfirmationReply(makeTransaction(data))))
+                                )
                         )
                 )
         );
@@ -80,6 +77,14 @@ public class BankAccountRoutes {
                 sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, accountNumber);
         return entityRef.ask(replyTo -> new BankAccount.CreateAccount(accountNumber, data.name, data.uid,
                 new BankAccountState.Transaction(UUIDGenerator.generateType4UUID().toString(), new Date().getTime(),
-                        data.startAmmount, data.uid, data.uid, "D"), replyTo), timeout);
+                        data.ammount, data.uid, data.uid, "D"), replyTo), timeout);
+    }
+
+    private CompletionStage<BankAccount.Confirmation> makeTransaction(MakeTransaction data) {
+        EntityRef<BankAccount.Command> entityRef =
+                sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, data.from);
+        return entityRef.ask(replyTo -> new BankAccount.CreateAccount(accountNumber, data.name, data.uid,
+                new BankAccountState.Transaction(UUIDGenerator.generateType4UUID().toString(), new Date().getTime(),
+                        data.ammount, data.uid, data.uid, "D"), replyTo), timeout);
     }
 }

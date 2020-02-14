@@ -1,6 +1,7 @@
 package br.com.diegosilva.bank.actors.account;
 
 import br.com.diegosilva.bank.CborSerializable;
+import br.com.diegosilva.bank.domain.TransactionType;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -28,7 +29,6 @@ public final class BankAccountState implements CborSerializable {
         this.number = number;
         this.name = name;
         this.uid = uid;
-
         return processTransaction(transaction);
     }
 
@@ -37,8 +37,11 @@ public final class BankAccountState implements CborSerializable {
         if (t.type.equals("C")) {
             this.ammount = this.ammount.add(t.amount);
         }
-
         return this;
+    }
+
+    boolean isCreated(){
+        return number != null && !number.isEmpty();
     }
 
 
@@ -48,7 +51,7 @@ public final class BankAccountState implements CborSerializable {
         public final BigDecimal amount;
         public final String from;
         public final String to;
-        public final String type;
+        public final TransactionType type;
 
 
         public Transaction(String tid,
@@ -56,7 +59,7 @@ public final class BankAccountState implements CborSerializable {
                            BigDecimal amount,
                            String from,
                            String to,
-                           String type) {
+                           TransactionType type) {
             this.tid = tid;
             this.timestamp = timestamp;
             this.amount = amount;

@@ -13,8 +13,6 @@ import br.com.diegosilva.bank.CborSerializable;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 
 
 public class BankAccount
@@ -27,10 +25,10 @@ public class BankAccount
     }
 
     public static class Accepted implements Confirmation {
-        public final Map<String, Object> summary;
+        public final Object summary;
 
         @JsonCreator
-        public Accepted(Map<String, Object> summary) {
+        public Accepted(Object summary) {
             this.summary = summary;
         }
     }
@@ -141,16 +139,20 @@ public class BankAccount
         CommandHandlerWithReplyBuilder<Command, Event, BankAccountState> b =
                 newCommandHandlerWithReplyBuilder();
 
-        b.forAnyState().onCommand(CreateAccount.class, accountCommandHandlers::onAddItem);
+        b.forAnyState().onCommand(CreateAccount.class, accountCommandHandlers::createAccount);
 
         return b.build();
     }
 
 
     private class AccountCommandHandlers {
-        public ReplyEffect<Event, BankAccountState> onAddItem(BankAccountState state, CreateAccount cmd) {
+        public ReplyEffect<Event, BankAccountState> createAccount(BankAccountState state, CreateAccount cmd) {
+            if (state.isCreated()) {
+                return Effect().reply(cmd.replyTo, new Rejected(
+                        "This account is aready created"));
+            }
             return Effect().persist(new AccountCreated(accountId, cmd.name, cmd.uid, cmd.transaction))
-                    .thenReply(cmd.replyTo, updatedCart -> new Accepted(new HashMap<>()));
+                    .thenReply(cmd.replyTo, updated -> new Accepted(updated));
         }
     }
 
