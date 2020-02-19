@@ -6,10 +6,12 @@ import akka.cluster.sharding.typed.javadsl.ClusterSharding;
 import akka.cluster.sharding.typed.javadsl.EntityRef;
 import akka.http.javadsl.marshallers.jackson.Jackson;
 import akka.http.javadsl.model.StatusCodes;
+import akka.http.javadsl.server.PathMatchers;
 import akka.http.javadsl.server.Route;
 import akka.serialization.jackson.JacksonObjectMapperProvider;
 import br.com.diegosilva.bank.actors.account.BankAccount;
 import br.com.diegosilva.bank.actors.account.BankAccountState;
+import br.com.diegosilva.bank.domain.TransactionType;
 import br.com.diegosilva.bank.routes.dto.CreateAccount;
 import br.com.diegosilva.bank.routes.dto.MakeTransaction;
 import br.com.diegosilva.bank.utils.UUIDGenerator;
@@ -18,7 +20,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
 import static akka.http.javadsl.server.Directives.*;
@@ -47,7 +48,17 @@ public class BankAccountRoutes {
                                         post(() ->
                                                 entity(
                                                         Jackson.unmarshaller(objectMapper, CreateAccount.class),
-                                                        data -> onConfirmationReply(createAccount(data))))
+                                                        data -> onConfirmationReply(createAccount(data)))),
+                                        pathPrefix(PathMatchers.segment(), (String accountId) ->
+                                                concat(
+                                                        get(() -> onSuccess(getAccount(accountId), accountState -> {
+                                                            if (accountState == null)
+                                                                return complete(StatusCodes.NOT_FOUND);
+                                                            else
+                                                                return complete(StatusCodes.OK, accountState, Jackson.marshaller(objectMapper));
+                                                        }))
+                                                )
+                                        )
                                 )
                         ),
                         pathPrefix("transaction", () ->
@@ -72,19 +83,22 @@ public class BankAccountRoutes {
     }
 
     private CompletionStage<BankAccount.Confirmation> createAccount(CreateAccount data) {
-        String accountNumber = UUID.randomUUID().toString();
         EntityRef<BankAccount.Command> entityRef =
-                sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, accountNumber);
-        return entityRef.ask(replyTo -> new BankAccount.CreateAccount(accountNumber, data.name, data.uid,
+                sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, data.number);
+        return entityRef.ask(replyTo -> new BankAccount.CreateAccount(data.number, data.name, data.uid,
                 new BankAccountState.Transaction(UUIDGenerator.generateType4UUID().toString(), new Date().getTime(),
-                        data.ammount, data.uid, data.uid, "D"), replyTo), timeout);
+                        data.ammount, data.uid, data.uid, TransactionType.C), replyTo), timeout);
     }
 
     private CompletionStage<BankAccount.Confirmation> makeTransaction(MakeTransaction data) {
-        EntityRef<BankAccount.Command> entityRef =
-                sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, data.from);
-        return entityRef.ask(replyTo -> new BankAccount.CreateAccount(accountNumber, data.name, data.uid,
-                new BankAccountState.Transaction(UUIDGenerator.generateType4UUID().toString(), new Date().getTime(),
-                        data.ammount, data.uid, data.uid, "D"), replyTo), timeout);
+        EntityRef<BankAccount.Command> entityRef = sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, data.from);
+        return entityRef.ask(replyTo -> new BankAccount.AddTransaction(new BankAccountState.Transaction(UUIDGenerator.generateType4UUID().toString(),
+                new Date().getTime(),
+                data.ammount, data.from, data.to, data.type), replyTo), timeout);
+    }
+
+    private CompletionStage<BankAccountState> getAccount(String account) {
+        EntityRef<BankAccount.Command> entityRef = sharding.entityRefFor(BankAccount.ENTITY_TYPE_KEY, account);
+        return entityRef.ask(BankAccount.Get::new, timeout);
     }
 }

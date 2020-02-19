@@ -1,7 +1,11 @@
 import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
+import akka.cluster.Cluster;
 import br.com.diegosilva.bank.actors.account.BankAccount;
+import br.com.diegosilva.bank.events.BankAccountEventProcessorStream;
+import br.com.diegosilva.bank.events.EventProcessor;
+import br.com.diegosilva.bank.events.EventProcessorSettings;
 import br.com.diegosilva.bank.routes.BankAccountRoutes;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -37,17 +41,17 @@ class Guardian {
     static Behavior<Void> create() {
         return Behaviors.setup(context -> {
             ActorSystem<?> system = context.getSystem();
-//            EventProcessorSettings settings = EventProcessorSettings.create(system);
+            EventProcessorSettings settings = EventProcessorSettings.create(system);
             int httpPort = system.settings().config().getInt("bank.http.port");
 
             BankAccount.init(system);
 
-//            if (Cluster.get(system).selfMember().hasRole("read-model")) {
-//                EventProcessor.init(
-//                        system,
-//                        settings,
-//                        tag -> new ShoppingCartEventProcessorStream(system, settings.id, tag));
-//            }
+            if (Cluster.get(system).selfMember().hasRole("read-model")) {
+                EventProcessor.init(
+                        system,
+                        settings,
+                        tag -> new BankAccountEventProcessorStream(system, settings.id));
+            }
 
             startHttpServer(new BankAccountRoutes(system).bank(), httpPort, system);
             return Behaviors.empty();

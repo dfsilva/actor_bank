@@ -10,6 +10,7 @@ import akka.cluster.sharding.typed.javadsl.EntityTypeKey;
 import akka.persistence.typed.PersistenceId;
 import akka.persistence.typed.javadsl.*;
 import br.com.diegosilva.bank.CborSerializable;
+import br.com.diegosilva.bank.domain.TransactionType;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 import java.time.Duration;
@@ -65,27 +66,24 @@ public class BankAccount
     }
 
     public static class AddTransaction implements Command {
-        public final String itemId;
-        public final int quantity;
+        public final BankAccountState.Transaction transaction;
         public final ActorRef<Confirmation> replyTo;
 
         @JsonCreator
-        public AddTransaction(String itemId, int quantity, ActorRef<Confirmation> replyTo) {
-            this.itemId = itemId;
-            this.quantity = quantity;
+        public AddTransaction(BankAccountState.Transaction transaction, ActorRef<Confirmation> replyTo) {
+            this.transaction = transaction;
             this.replyTo = replyTo;
         }
     }
 
-    public static class Checkout implements Command {
-        public final ActorRef<Confirmation> replyTo;
+    public static class Get implements Command {
+        public final ActorRef<BankAccountState> replyTo;
 
         @JsonCreator
-        public Checkout(ActorRef<Confirmation> replyTo) {
+        public Get(ActorRef<BankAccountState> replyTo) {
             this.replyTo = replyTo;
         }
     }
-
 
     public interface Event extends CborSerializable {
     }
@@ -102,6 +100,15 @@ public class BankAccount
             this.number = number;
             this.name = name;
             this.uid = uid;
+            this.transaction = transaction;
+        }
+    }
+
+    public static class TransactionAdded implements Event {
+        public final BankAccountState.Transaction transaction;
+
+        @JsonCreator
+        public TransactionAdded(BankAccountState.Transaction transaction) {
             this.transaction = transaction;
         }
     }
@@ -139,11 +146,19 @@ public class BankAccount
         CommandHandlerWithReplyBuilder<Command, Event, BankAccountState> b =
                 newCommandHandlerWithReplyBuilder();
 
-        b.forAnyState().onCommand(CreateAccount.class, accountCommandHandlers::createAccount);
+        b.forAnyState()
+                .onCommand(CreateAccount.class, accountCommandHandlers::createAccount)
+                .onCommand(AddTransaction.class, accountCommandHandlers::addTransaction)
+                .onCommand(Get.class, this::onGet);
+        ;
 
         return b.build();
     }
 
+
+    private ReplyEffect<Event, BankAccountState> onGet(BankAccountState state, Get cmd) {
+        return Effect().reply(cmd.replyTo, state);
+    }
 
     private class AccountCommandHandlers {
         public ReplyEffect<Event, BankAccountState> createAccount(BankAccountState state, CreateAccount cmd) {
@@ -154,6 +169,22 @@ public class BankAccount
             return Effect().persist(new AccountCreated(accountId, cmd.name, cmd.uid, cmd.transaction))
                     .thenReply(cmd.replyTo, updated -> new Accepted(updated));
         }
+
+        public ReplyEffect<Event, BankAccountState> addTransaction(BankAccountState state, AddTransaction cmd) {
+            if (!state.isCreated()) {
+                return Effect().reply(cmd.replyTo, new Rejected(
+                        "This account is not valid."));
+            }
+
+            if (cmd.transaction.type == TransactionType.D) {
+                if (!state.hasMoney(cmd.transaction.amount)) {
+                    return Effect().reply(cmd.replyTo, new Rejected(
+                            "You have not enough money to do this."));
+                }
+            }
+            return Effect().persist(new TransactionAdded(cmd.transaction))
+                    .thenReply(cmd.replyTo, updated -> new Accepted(updated));
+        }
     }
 
 
@@ -161,6 +192,7 @@ public class BankAccount
     public EventHandler<BankAccountState, Event> eventHandler() {
         return newEventHandlerBuilder().forAnyState()
                 .onEvent(AccountCreated.class, (state, event) -> state.createAccount(event.number, event.name, event.uid, event.transaction))
+                .onEvent(TransactionAdded.class, (state, event) -> state.processTransaction(event.transaction))
                 .build();
     }
 

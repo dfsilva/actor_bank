@@ -24,7 +24,6 @@ public final class BankAccountState implements CborSerializable {
     public BankAccountState() {
     }
 
-
     public BankAccountState createAccount(String number, String name, String uid, Transaction transaction) {
         this.number = number;
         this.name = name;
@@ -32,15 +31,27 @@ public final class BankAccountState implements CborSerializable {
         return processTransaction(transaction);
     }
 
-    private BankAccountState processTransaction(Transaction t) {
+    public BankAccountState processTransaction(Transaction t) {
         this.transactions.add(t);
-        if (t.type.equals("C")) {
-            this.ammount = this.ammount.add(t.amount);
+
+        if (t.type == TransactionType.C) {
+            if (t.amount != null)
+                this.ammount = this.ammount.add(t.amount);
         }
+
+        if (t.type == TransactionType.D) {
+            if (t.amount != null)
+                this.ammount = this.ammount.subtract(t.amount);
+        }
+
         return this;
     }
 
-    boolean isCreated(){
+    public boolean hasMoney(BigDecimal ammount) {
+        return this.ammount.compareTo(ammount) >= 0;
+    }
+
+    boolean isCreated() {
         return number != null && !number.isEmpty();
     }
 
@@ -83,4 +94,14 @@ public final class BankAccountState implements CborSerializable {
         }
     }
 
+    @Override
+    public String toString() {
+        return "BankAccountState{" +
+                "number='" + number + '\'' +
+                ", name='" + name + '\'' +
+                ", uid='" + uid + '\'' +
+                ", ammount=" + ammount +
+                ", transactions=" + transactions +
+                '}';
+    }
 }
