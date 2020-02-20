@@ -34,23 +34,24 @@ public abstract class EventProcessorStream<Event> {
     protected final ActorSystem<?> system;
     private final String eventProcessorId;
 
-    private final CassandraReadJournal query;
-    private final CassandraSession session;
+//    private final CassandraReadJournal query;
+//    private final CassandraSession session;
 
     protected EventProcessorStream(ActorSystem<?> system, String eventProcessorId) {
         this.system = system;
         this.eventProcessorId = eventProcessorId;
-        query = PersistenceQuery.get(Adapter.toClassic(system)).getReadJournalFor(CassandraReadJournal.class, CassandraReadJournal.Identifier());
-        session = CassandraSessionExtension.Id.get(system).session;
+//        query = PersistenceQuery.get(Adapter.toClassic(system)).getReadJournalFor(CassandraReadJournal.class, CassandraReadJournal.Identifier());
+//        session = CassandraSessionExtension.Id.get(system).session;
     }
 
     protected abstract CompletionStage<Object> processEvent(Event event, PersistenceId persistenceId, long sequenceNr);
 
     public void runQueryStream(SharedKillSwitch killSwitch) {
+
         RestartSource.withBackoff(Duration.ofMillis(500), Duration.ofSeconds(20), 0.1, () ->
                 Source.completionStageSource(
                         readOffset().thenApply(offset -> {
-                            log.info("Starting stream for tag [{}] from offset [{}]", tag, offset);
+                            log.info("Starting stream for tag [{}] from offset [{}]", offset);
                             return processEventsByTag(offset)
                                     // groupedWithin can be used here to improve performance by reducing number of offset writes,
                                     // with the trade-off of possibility of more duplicate events when stream is restarted
@@ -71,40 +72,40 @@ public abstract class EventProcessorStream<Event> {
                 });
     }
 
-    private CompletionStage<PreparedStatement> prepareWriteOffset() {
-        return session.prepare("INSERT INTO akka_cqrs_sample.offsetStore (eventProcessorId, tag, timeUuidOffset) VALUES (?, ?, ?)");
-    }
+//    private CompletionStage<PreparedStatement> prepareWriteOffset() {
+//        return session.prepare("INSERT INTO akka_cqrs_sample.offsetStore (eventProcessorId, tag, timeUuidOffset) VALUES (?, ?, ?)");
+//    }
 
-    private CompletionStage<Done> writeOffset(Offset offset) {
-        if (offset instanceof TimeBasedUUID) {
-            UUID uuidOffset = ((TimeBasedUUID) offset).value();
-            return prepareWriteOffset()
-                    .thenApply(stmt -> stmt.bind(eventProcessorId, tag, uuidOffset))
-                    .thenCompose(session::executeWrite);
-        } else {
-            throw new IllegalArgumentException("Unexpected offset type " + offset);
-        }
-    }
+//    private CompletionStage<Done> writeOffset(Offset offset) {
+//        if (offset instanceof TimeBasedUUID) {
+//            UUID uuidOffset = ((TimeBasedUUID) offset).value();
+//            return prepareWriteOffset()
+//                    .thenApply(stmt -> stmt.bind(eventProcessorId, tag, uuidOffset))
+//                    .thenCompose(session::executeWrite);
+//        } else {
+//            throw new IllegalArgumentException("Unexpected offset type " + offset);
+//        }
+//    }
 
 
-    private CompletionStage<Offset> readOffset() {
-        return session.selectOne(
-                "SELECT timeUuidOffset FROM akka_cqrs_sample.offsetStore WHERE eventProcessorId = ? AND tag = ?",
-                eventProcessorId,
-                tag)
-                .thenApply(this::extractOffset);
-    }
+//    private CompletionStage<Offset> readOffset() {
+//        return session.selectOne(
+//                "SELECT timeUuidOffset FROM akka_cqrs_sample.offsetStore WHERE eventProcessorId = ? AND tag = ?",
+//                eventProcessorId,
+//                tag)
+//                .thenApply(this::extractOffset);
+//    }
 
-    private Offset extractOffset(Optional<Row> maybeRow) {
-        if (maybeRow.isPresent()) {
-            UUID uuid = maybeRow.get().getUUID("timeUuidOffset");
-            if (uuid == null) {
-                return Offset.noOffset();
-            } else {
-                return Offset.timeBasedUUID(uuid);
-            }
-        } else {
-            return Offset.noOffset();
-        }
-    }
+//    private Offset extractOffset(Optional<Row> maybeRow) {
+//        if (maybeRow.isPresent()) {
+//            UUID uuid = maybeRow.get().getUUID("timeUuidOffset");
+//            if (uuid == null) {
+//                return Offset.noOffset();
+//            } else {
+//                return Offset.timeBasedUUID(uuid);
+//            }
+//        } else {
+//            return Offset.noOffset();
+//        }
+//    }
 }

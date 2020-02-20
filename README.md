@@ -46,17 +46,16 @@ mvn compile -Dakka.cluster.roles.0=read-model exec:java -Dexec.mainClass="br.com
 Try it with curl:
 
  ```
- # add item to cart
- curl -X POST -H "Content-Type: application/json" -d '{"cartId":"cart1", "itemId":"socks", "quantity":3}' http://127.0.0.1:8051/shopping/carts
 
- # get cart
- curl http://127.0.0.1:8051/shopping/carts/cart1
+ # create account 1
+curl -X POST -H "Content-Type: application/json" -d '{"number":"000001", "uid":"98379720172", "name":"Diego Ferreira", "ammount":100}' http://127.0.0.1:8051/bank/account
+curl -X POST -H "Content-Type: application/json" -d '{"number":"000002", "uid":"02218035138", "name":"Mariana Araújo", "ammount":100}' http://127.0.0.1:8051/bank/account
 
- # update quantity of item
- curl -X PUT -H "Content-Type: application/json" -d '{"cartId":"cart1", "itemId":"socks", "quantity":5}' http://127.0.0.1:8051/shopping/carts
+curl -X POST -H "Content-Type: application/json" -d '{"from":"000001", "to":"000001", "type":"C", "description":"Deposito em proprio favorecido", "ammount":100}' http://127.0.0.1:8051/bank/transaction | json_pp
 
- # check out cart
- curl -X POST -H "Content-Type: application/json" -d '{}' http://127.0.0.1:8051/shopping/carts/cart1/checkout
+curl -X POST -H "Content-Type: application/json" -d '{"from":"000001", "to":"000001", "type":"D", "description":"Saque", "ammount":35}' http://127.0.0.1:8051/bank/transaction | json_pp
+
+curl -X GET -H "Content-Type: application/json" http://127.0.0.1:8051/bank/account/000001 | json_pp
  ```
 
  or same `curl` commands to port 8052.

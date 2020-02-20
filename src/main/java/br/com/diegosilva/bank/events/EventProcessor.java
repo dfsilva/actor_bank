@@ -11,8 +11,6 @@ import akka.stream.KillSwitches;
 import akka.stream.SharedKillSwitch;
 import br.com.diegosilva.bank.CborSerializable;
 
-import java.util.function.Function;
-
 /**
  * General purpose event processor infrastructure. Not specific to the ShoppingCart domain.
  */
@@ -29,19 +27,21 @@ public class EventProcessor {
     public static <Event> void init(
             ActorSystem<?> system,
             EventProcessorSettings settings,
-            Function<String, EventProcessorStream<Event>> eventProcessorStream) {
+            EventProcessorStream<Event> eventProcessorStream) {
 
         EntityTypeKey<Ping> eventProcessorEntityKey = entityKey(settings.id);
 
         ClusterSharding.get(system).init(Entity.of(eventProcessorEntityKey, entityContext ->
-                EventProcessor.create(eventProcessorStream.apply(entityContext.getEntityId()))).withRole("read-model"));
+                EventProcessor.create(eventProcessorStream)).withRole("read-model"));
 
         KeepAlive.init(system, eventProcessorEntityKey);
     }
 
     public static Behavior<Ping> create(EventProcessorStream<?> eventProcessorStream) {
+
         return Behaviors.setup(context -> {
             SharedKillSwitch killSwitch = KillSwitches.shared("eventProcessorSwitch");
+
             eventProcessorStream.runQueryStream(killSwitch);
 
             return Behaviors.receive(Ping.class)

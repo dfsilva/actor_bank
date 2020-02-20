@@ -50,7 +50,7 @@ class Guardian {
                 EventProcessor.init(
                         system,
                         settings,
-                        tag -> new BankAccountEventProcessorStream(system, settings.id));
+                        new BankAccountEventProcessorStream(system, settings.id));
             }
 
             startHttpServer(new BankAccountRoutes(system).bank(), httpPort, system);
