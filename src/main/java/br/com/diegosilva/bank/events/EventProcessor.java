@@ -34,7 +34,8 @@ public class EventProcessor {
 
         EntityTypeKey<Ping> eventProcessorEntityKey = entityKey(settings.id);
 
-        ClusterSharding.get(system).init(Entity.of(eventProcessorEntityKey, entityContext ->
+        ClusterSharding.get(system)
+                .init(Entity.of(eventProcessorEntityKey, entityContext ->
                 EventProcessor.create())
                 .withRole("read-model"));
 
