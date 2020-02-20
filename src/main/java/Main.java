@@ -3,7 +3,6 @@ import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.cluster.Cluster;
 import br.com.diegosilva.bank.actors.account.BankAccount;
-import br.com.diegosilva.bank.events.BankAccountEventProcessorStream;
 import br.com.diegosilva.bank.events.EventProcessor;
 import br.com.diegosilva.bank.events.EventProcessorSettings;
 import br.com.diegosilva.bank.routes.BankAccountRoutes;
@@ -49,8 +48,7 @@ class Guardian {
             if (Cluster.get(system).selfMember().hasRole("read-model")) {
                 EventProcessor.init(
                         system,
-                        settings,
-                        new BankAccountEventProcessorStream(system, settings.id));
+                        settings);
             }
 
             startHttpServer(new BankAccountRoutes(system).bank(), httpPort, system);
