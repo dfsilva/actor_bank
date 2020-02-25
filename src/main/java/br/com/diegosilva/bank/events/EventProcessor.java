@@ -52,7 +52,10 @@ public class EventProcessor {
             log.info("-----------Evento processado----------------");
 
             return Behaviors.receive(Ping.class)
-                    .onMessage(Ping.class, msg -> Behaviors.same())
+                    .onMessage(Ping.class, msg -> {
+                        log.info("----------- Recebu Ping -------------");
+                        return Behaviors.same();
+                    })
                     .onSignal(PostStop.class, sig -> {
                         killSwitch.shutdown();
                         return Behaviors.same();
